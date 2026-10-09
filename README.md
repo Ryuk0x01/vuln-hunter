@@ -13,21 +13,22 @@ The target environment is fully containerized using Docker to ensure isolation, 
 
 - **Target URL:** `http://localhost:3000`
 - **Deployment Platform:** Docker Container (`bkimminich/juice-shop`)
-- **Automated Deployment:** Run `./setup/setup.sh` to pull, configure, and launch the containerized application automatically.
+- **Automated Deployment:** Run `./setup.sh` to pull, configure, and launch the containerized application automatically.
 
 ---
 
 ## Vulnerability Findings Summary
 
-The table below outlines the five primary vulnerabilities discovered and successfully exploited during the security assessment:
+The table below outlines the six primary vulnerabilities discovered and successfully exploited during the security assessment:
 
 | ID | Vulnerability Type | Vulnerable Vector / Endpoint | Exploitation Status | Comprehensive Report |
 | :--- | :--- | :--- | :--- | :--- |
-| **01** | SQL Injection (SQLi) | User Authentication (`/rest/user/login`) | Exploited | [View Exploit Report](exploits/01-sql-injection-login/report.md) |
-| **02** | DOM-based XSS | Global Search Field (`/#/search`) | Exploited | [View Exploit Report](exploits/02-xss-dom/report.md) |
-| **03** | Broken Authentication | Admin Security Question Reset (`/rest/user/reset-password`) | Exploited | [View Exploit Report](exploits/03-broken-auth-admin/report.md) |
-| **04** | Insecure Direct Object Reference (IDOR) | User Basket Management (`/rest/basket/{id}`) | Exploited | [View Exploit Report](exploits/04-idor-basket/report.md) |
-| **05** | Security Misconfiguration | Unprotected API Documentation (`/api-docs`) | Exploited | [View Exploit Report](exploits/05-security-misconfig/report.md) |
+| **01** | SQL Injection (SQLi) | User Authentication (`/rest/user/login`) | Exploited | [View Exploit Report](exploits/01-SQLI/report.md) |
+| **02** | DOM-based XSS | Global Search Field (`/#/search`) | Exploited | [View Exploit Report](exploits/02-DOM-XSS/report.md) |
+| **03** | Broken Access Control | User Registration API (`/api/Users/`) | Exploited | [View Exploit Report](exploits/03-BAC/report.md) |
+| **04** | Insecure Direct Object Reference (IDOR) | User Basket Management (`/rest/basket/{id}`) | Exploited | [View Exploit Report](exploits/04-IDOR/report.md) |
+| **05** | Sensitive Information Disclosure | Memories API (`/rest/memories`) | Exploited | [View Exploit Report](exploits/05-sensitive-information-disclosure/report.md) |
+| **06** | Cross-Site Request Forgery (CSRF) | User Profile Update (`/profile`) | Exploited | [View Exploit Report](exploits/06-CSRF/report.md) |
 
 ---
 
@@ -43,20 +44,25 @@ The table below outlines the five primary vulnerabilities discovered and success
 - **Exploit Vector:** Injecting an HTML payload containing inline JavaScript (`<iframe src="javascript:alert('XSS')">`) via search parameter.
 - **Impact:** Arbitrary JavaScript execution in the victim's browser, session hijacking, cookie theft, and client-side UI redressing.
 
-### 3. Broken Authentication (Security Question Bypass)
-- **Description:** Flawed password recovery logic relying on weak, publicly discoverable security questions without rate limiting or multi-factor verification.
-- **Exploit Vector:** Bypassing authentication by answering the administrative account's security question (`Mr. Noodles`) to forcibly reset the password via `/rest/user/reset-password`.
-- **Impact:** Administrative account takeover, privilege escalation, and bypass of standard login mechanisms.
+### 3. Broken Access Control (Mass Assignment)
+- **Description:** The application automatically binds client-provided HTTP request parameters directly to internal data models without maintaining a strict field authorization whitelist.
+- **Exploit Vector:** Appending `"role": "admin"` to the JSON body of the `POST /api/Users/` registration request to create an account with full administrative privileges.
+- **Impact:** Any unauthenticated visitor can provision fully-privileged administrative accounts, rendering the application's permission controls useless.
 
 ### 4. Insecure Direct Object Reference (IDOR)
 - **Description:** Broken object-level access control where user-supplied input directly references database objects without checking ownership or authorization.
 - **Exploit Vector:** Modifying the `{id}` path parameter in HTTP requests (`/rest/basket/{id}`) to view, add, or tamper with shopping baskets belonging to other users.
 - **Impact:** Unauthorized access to private customer data, data leakage, and unauthorized modification of user orders.
 
-### 5. Security Misconfiguration (Exposed API Docs)
-- **Description:** Development tools, internal documentation, or debug endpoints left publicly accessible in production builds.
-- **Exploit Vector:** Navigating directly to the `/api-docs` endpoint to access hidden REST API schematics and unlinked service endpoints.
-- **Impact:** System information disclosure, mapping of attack surface for further exploitation, and exposure of internal backend structures.
+### 5. Sensitive Information Disclosure (API Enumeration & Credential Leakage)
+- **Description:** Undocumented API endpoints expose raw backend database objects containing sensitive user records without authentication or field-level filtering.
+- **Exploit Vector:** Enumerating API paths using `ffuf` with `wordlist.txt` to uncover `/rest/memories`, which returns unredacted user models leaking plaintext emails, MD5 password hashes, deluxe tokens, and system metadata.
+- **Impact:** Credential harvesting, offline password hash cracking, account takeover, and reconnaissance against privileged application users.
+
+### 6. Cross-Site Request Forgery (CSRF)
+- **Description:** The profile update endpoint processes state-changing requests without validating a CSRF token or verifying the request origin.
+- **Exploit Vector:** Hosting a malicious HTML page with a hidden auto-submitting form targeting `POST /profile` to silently change the victim's username while they are authenticated.
+- **Impact:** Unauthorized modification of victim account details, potential account takeover when chained with other vulnerabilities, and execution of arbitrary state-changing actions on behalf of the victim.
 
 ---
 
